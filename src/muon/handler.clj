@@ -14,6 +14,9 @@
 ; webserver
 (def DOMAIN_ROOT "http://localhost:3000/")
 
+; Change the password!!
+(def PASSWORD "password")
+
 (defn build-url
   [& args]
   (reduce str DOMAIN_ROOT args))
@@ -114,6 +117,11 @@
   (mp/wrap-multipart-params
    (POST "/upload" {params :params}
          (cond
+          (or (nil? (:password params))
+              (not (= (:password params) PASSWORD)))
+              {:status 401
+               :header {}
+               :body "Unauthorized access. This incident will be reported to your parents.\n"}
           (not (nil? (:file params)))
            (handle-file-upload params)
           (not (nil? (:text params)))
