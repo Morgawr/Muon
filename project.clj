@@ -1,6 +1,6 @@
 (defproject muon "0.1.0"
-  :description "Muon - Build your own self-destructible file/text host."
-  :url ""
+  :description "Muon - Build your own self-destructible file host."
+  :url "https://github.com/Morgawr/Muon.git"
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [lein-light-nrepl "0.0.6"]
                  [compojure "1.1.6"]
