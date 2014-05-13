@@ -113,7 +113,6 @@
 (defroutes app-routes
   (GET "/" [] "Welcome to Muon, the private self-destructible file host.")
   (GET ["/resource/:id" :id #"[0-9]+"] [id] (return-data (Integer/parseInt id)))
-  (GET "/resource/:id/status" [id] "Ded :(")
   (mp/wrap-multipart-params
    (POST "/upload" {params :params}
          (cond
