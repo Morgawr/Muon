@@ -19,6 +19,8 @@
 
 ; Default Content-Type
 (def MIME "application/octet-stream")
+(def MIMEFILE "/etc/mime.types")
+(def mimetypes nil)
 
 (defn build-url
   [& args]
@@ -59,42 +61,43 @@
    :body "Internal server error, this should NOT happen."})
 
 (defn save-to-db
-  [text type mime opts]
+  [text type opts]
   (let [duration (try (Integer/parseInt (:duration opts)) (catch Exception e nil))
         clicks (try (Integer/parseInt (:clicks opts)) (catch Exception e nil))]
     (cond
      (and (nil? duration) (nil? clicks)) wrong-options
      (not (nil? clicks))
-       (let [res (db/insert! (db-connection) :data {:text text :type (name type) :mime mime :policy "clicks" :expires_at 0 :max_visits clicks :visits 0})]
+       (let [res (db/insert! (db-connection) :data {:text text :type type :policy "clicks" :expires_at 0 :max_visits clicks :visits 0})]
          (build-url
           "resource/"
           (str (last (first (first res))) "\n")))
      (not (nil? duration))
-       (let [res (db/insert! (db-connection) :data {:text text :type (name type) :mime mime :policy "timed" :expires_at (+ (System/currentTimeMillis) (* duration 1000)) :max_visits 0 :visits 0})]
+       (let [res (db/insert! (db-connection) :data {:text text :type type :policy "timed" :expires_at (+ (System/currentTimeMillis) (* duration 1000)) :max_visits 0 :visits 0})]
          (build-url
           "resource/"
           (str (last (first (first res))) "\n")))
      :else internal-error)))
 
+(defn get-mime [filename]
+  (let [dot (.indexOf filename ".")
+        ext (if (> dot -1) (subs filename (+ dot 1)))
+        mime (or (get mimetypes ext) MIME)]
+    mime))
+
 (defn handle-file-upload
   [data]
   (let [filename (str "resources/" (System/currentTimeMillis))]
     (io/copy (:tempfile (:file data)) (io/as-file filename))
-    (save-to-db filename :file (or (:content-type (:file data)) MIME) data)))
-
-(defn handle-text-upload
-  [data]
-  (save-to-db (:text data) :text "text/plain" data))
+    (save-to-db filename (get-mime (:filename (:file data))) data)))
 
 (defn build-response
-  [text type mime]
-  (cond
-   (= "file" type) (res/content-type (res/file-response text) mime)
-   (= "text" type) {:status 200 :headers {"Content-Type" mime} :body text}
-   :else internal-error))
+  [text type]
+  (if (not (empty? type))
+    (res/content-type (res/file-response text) type)
+    internal-error))
 
 (defn check-expired
-  [{:keys [id text type policy expires_at max_visits visits mime]}]
+  [{:keys [id text type policy expires_at max_visits visits]}]
   (if (or (and (= "timed" policy)
                (> (System/currentTimeMillis) expires_at))
           (and (= "clicks" policy)
@@ -104,7 +107,7 @@
      :body "This file has expired.\n"}
     (do
       (db/execute! (db-connection) [(str "update data set visits = (visits + 1) where id =" id)])
-      (build-response text type (or mime MIME)))))
+      (build-response text (or type MIME)))))
 
 (defn return-data
   [id]
@@ -112,6 +115,19 @@
      (if-not (empty? data)
        (check-expired data)
        nil)))
+
+(defn load-mime [file]
+  (loop [mimes (line-seq (io/reader file))
+         mimetypes {}]
+    (if (empty? mimes)
+      mimetypes
+      (let [line (.split (first mimes) "\\s+")
+            type (first line)
+            exts (rest line)]
+        (recur (rest mimes)
+          (reduce (fn [mm ext]
+                    (assoc mm ext type))
+            mimetypes exts))))))
 
 (defroutes app-routes
   (GET "/" [] "Welcome to Muon, the private self-destructible file host.")
@@ -126,8 +142,6 @@
                :body "Unauthorized access. This incident will be reported to your parents.\n"}
           (not (nil? (:file params)))
            (handle-file-upload params)
-          (not (nil? (:text params)))
-            (handle-text-upload params)
           :else
             {:status 418
              :headers {}
@@ -136,5 +150,6 @@
   (route/not-found "Not Found\n"))
 
 
+(def mimetypes (load-mime MIMEFILE))
 (def app
   (handler/site app-routes))
