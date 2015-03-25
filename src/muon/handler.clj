@@ -43,7 +43,6 @@
 (def pooled-db (delay (pool sqldb)))
 (defn db-connection [] @pooled-db)
 
-
 (defn get-from-db
   [id]
   (first (db/query (db-connection) (hn/format (hn/build {:select :*
@@ -116,18 +115,11 @@
        (check-expired data)
        nil)))
 
-(defn load-mime [file]
-  (loop [mimes (line-seq (io/reader file))
-         mimetypes {}]
-    (if (empty? mimes)
-      mimetypes
-      (let [line (.split (first mimes) "\\s+")
-            type (first line)
-            exts (rest line)]
-        (recur (rest mimes)
-          (reduce (fn [mm ext]
-                    (assoc mm ext type))
-            mimetypes exts))))))
+(defn load-mime 
+  [file]
+  (into {} (map #(let [line (.split % "\\s+")]
+                   (zipmap (rest line) (repeat (first line))))
+                (clojure.string/split (slurp file) #"\n"))))
 
 (defroutes app-routes
   (GET "/" [] "Welcome to Muon, the private self-destructible file host.")
@@ -147,7 +139,6 @@
               :body "Incorrect request, either give me a file or a piece of text.\n"})))
   (route/resources "/")
   (route/not-found "Not Found\n"))
-
 
 (def mimetypes (load-mime MIMEFILE))
 (def app
