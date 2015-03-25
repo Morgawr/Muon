@@ -12,7 +12,7 @@
 
 ; Modify this if you want to change the url returned by the
 ; webserver
-(def DOMAIN_ROOT "http://localhost:3000/")
+(def DOMAIN_ROOT "http://localhost:8080/")
 
 ; Change the password!!
 (def PASSWORD "password")
