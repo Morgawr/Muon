@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 mkdir db 2> /dev/null
 rm db/database.db 2> /dev/null
