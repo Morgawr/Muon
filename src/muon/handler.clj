@@ -70,17 +70,17 @@
        (let [res (db/insert! (db-connection) :data {:text text :type type :policy "clicks" :expires_at 0 :max_visits clicks :visits 0})]
          (build-url
           "resource/"
-          (str (last (first (first res))) "\n")))
+          (str (last (ffirst res)) "\n")))
      (not (nil? duration))
        (let [res (db/insert! (db-connection) :data {:text text :type type :policy "timed" :expires_at (+ (System/currentTimeMillis) (* duration 1000)) :max_visits 0 :visits 0})]
          (build-url
           "resource/"
-          (str (last (first (first res))) "\n")))
+          (str (last (ffirst res)) "\n")))
      :else internal-error)))
 
 (defn get-mime [filename]
   (let [dot (.indexOf filename ".")
-        ext (if (> dot -1) (subs filename (+ dot 1)))
+        ext (if (> dot -1) (subs filename (inc dot)))
         mime (or (get mimetypes ext) MIME)]
     mime))
 
@@ -92,7 +92,7 @@
 
 (defn build-response
   [text type]
-  (if (not (empty? type))
+  (if (seq type)
     (res/content-type (res/file-response text) type)
     internal-error))
 
@@ -135,17 +135,16 @@
   (mp/wrap-multipart-params
    (POST "/upload" {params :params}
          (cond
-          (or (nil? (:password params))
-              (not (= (:password params) PASSWORD)))
-              {:status 401
-               :header {}
-               :body "Unauthorized access. This incident will be reported to your parents.\n"}
-          (not (nil? (:file params)))
-           (handle-file-upload params)
-          :else
-            {:status 418
-             :headers {}
-             :body "Incorrect request, either give me a file or a piece of text.\n"})))
+           (not= (:password params) PASSWORD)
+             {:status 401
+              :header {}
+              :body "Unauthorized access. This incident will be reported to your parents.\n"}
+           (not (nil? (:file params)))
+             (handle-file-upload params)
+           :else
+             {:status 418
+              :headers {}
+              :body "Incorrect request, either give me a file or a piece of text.\n"})))
   (route/resources "/")
   (route/not-found "Not Found\n"))
 
