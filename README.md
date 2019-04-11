@@ -26,22 +26,19 @@ password.
 
 ## Running
 
-To start a web server for the application, run:
+The webserver is designed to run from a repl. This makes it easier to run live queries and do
+live debugging and... it's cool. It's recommended to start the repl in a tmux or screen session.
 
-    lein ring server 8080
-
-This starts the web server on port 8080, use whatever
-other port you prefer for your setup/routing.
-
-If you want to keep a repl connection alive for live monitoring of your webserver, run the following
-commands:
+To start, run the following command in the home directory of the project:
 
     lein repl
+
+And then execute the following statements in the repl, in order:
+
     (use '[muon.handler])
     (use '[ring.util.serve])
     (serve app 8080)
 
-It's better if you run it inside a screen or tmux session so you can detach whenever you want.
 Again, change the port if necessary.
 
 ## API
