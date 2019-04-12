@@ -7,7 +7,6 @@
             [ring.util.response :as res]
             [clojure.java.io :as io]
             [honeysql.core :as hn]
-            [honeysql.helpers :refer :all]
             [clojure.java.jdbc :as db]))
 
 ; Modify this if you want to change the url returned by the
