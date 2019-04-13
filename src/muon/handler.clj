@@ -20,6 +20,8 @@
 ; the randomized wordlists for your system.
 (def WORDSFILE "db/wordlist")
 
+(def STORAGE_LOCATION "resources")
+
 ; Default Content-Type
 (def MIME "application/octet-stream")
 (def MIMEFILE "/etc/mime.types")
@@ -91,7 +93,7 @@
                       (db/insert! (db-connection) :autoexpire {:data_id (get-id res) 
                                                                :expires_at (:expires_at query)}))
                     res))
-        get-url #(build-url "resource" folder filename)]
+        get-url #(build-url folder filename)]
     (cond
      (and (nil? duration) (nil? clicks)) wrong-options
      (not (nil? clicks))
@@ -108,11 +110,14 @@
         mime (or (get mimetypes ext) MIME)]
     mime))
 
+(defn build-local-file-path [folder filename]
+  (reduce str (interpose "/" [STORAGE_LOCATION folder filename])))
+
 ; TODO(morg): Make exit condition with exception if we recur too many times.
 (defn randomize-file-location [filename]
   (loop []
     (let [folder (generate-random-folder)
-          full-name (reduce str (interpose "/" ["resources" folder filename]))
+          full-name (build-local-file-path folder filename)
           new-file (io/as-file full-name)]
       (do
         (io/make-parents full-name)
@@ -128,7 +133,7 @@
 
 (defn build-response
   [folder filename type]
-  (let [full-file (reduce str (interpose "/" ["resources" folder filename]))]
+  (let [full-file (build-local-file-path folder filename)]
     (if (seq type)
       (res/content-type (res/file-response full-file) type)
       internal-error)))
@@ -165,8 +170,7 @@
 
 (defroutes app-routes
   (GET "/" [] "Welcome to Muon, the private self-destructible file host.")
-  ; TODO(morg) Remove the /resource/ path and only access $HOST/<folder>/<filename> 
-  (GET ["/resource/:folder/:filename"] [folder filename] (return-data folder filename))
+  (GET ["/:folder/:filename"] [folder filename] (return-data folder filename))
   (mp/wrap-multipart-params
    (POST "/upload" {params :params}
          (cond
