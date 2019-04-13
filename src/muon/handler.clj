@@ -113,6 +113,9 @@
 (defn build-local-file-path [folder filename]
   (reduce str (interpose "/" [STORAGE_LOCATION folder filename])))
 
+(defn build-local-dir-path [folder]
+  (reduce str (interpose "/" [STORAGE_LOCATION folder])))
+
 ; TODO(morg): Make exit condition with exception if we recur too many times.
 (defn randomize-file-location [filename]
   (loop []
@@ -190,3 +193,25 @@
 (def mimetypes (load-mime MIMEFILE))
 (def app
   (handler/site app-routes))
+
+(def DAILY (* 1000 60 60 24))
+
+(defn run-daily [callback]
+  (future (while true (do (Thread/sleep DAILY) (callback)))))
+
+(defn collect-resource [data-id]
+  (let [db-query (hn/build {:select :* :from :data :where [:= :id data-id]})
+        result (first (db/query (db-connection) (hn/format db-query)))
+        full-name (io/as-file (build-local-file-path (:folder result) (:filename result)))
+        dir-name (io/as-file (build-local-dir-path (:folder result)))]
+      (do 
+        (when (.exists full-name)
+          (io/delete-file full-name))
+        (when (and (.isDirectory dir-name) (-> dir-name .list empty?))
+          (io/delete-file dir-name)))))
+
+(defn collect-expired-resources []
+  (let [current-time (System/currentTimeMillis)
+        db-query (hn/build {:select :data_id :from :autoexpire :where [:<= :expires_at current-time]})
+        results (db/query (db-connection) (hn/format db-query))]
+        (doall (map (comp collect-resource :data_id) results))))
