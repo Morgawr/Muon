@@ -52,10 +52,9 @@
 (def words-file (memoize get-words-file))
 
 (defn get-from-db
-  [id]
-  (first (db/query (db-connection) (hn/format (hn/build {:select :*
-                                                         :from [:data]
-                                                         :where [:= :id id]})))))
+  [folder filename]
+  (let [query (hn/build {:select :* :from :data :where [:and [:= :folder folder] [:= :filename filename]]})]
+    (first (db/query (db-connection) (hn/format query)))))
 
 (def wrong-options
   {:status 400
@@ -128,13 +127,14 @@
     (save-to-db folder (:filename (:file data)) (get-mime (:filename (:file data))) data)))
 
 (defn build-response
-  [text type]
-  (if (seq type)
-    (res/content-type (res/file-response text) type)
-    internal-error))
+  [folder filename type]
+  (let [full-file (reduce str (interpose "/" ["resources" folder filename]))]
+    (if (seq type)
+      (res/content-type (res/file-response full-file) type)
+      internal-error)))
 
 (defn check-expired
-  [{:keys [id text type policy expires_at max_visits visits]}]
+  [{:keys [id folder filename type policy expires_at max_visits visits]}]
   (if (or (and (= "timed" policy)
                (> (System/currentTimeMillis) expires_at))
           (and (= "clicks" policy)
@@ -144,11 +144,11 @@
      :body "This file has expired.\n"}
     (do
       (db/execute! (db-connection) [(str "update data set visits = (visits + 1) where id =" id)])
-      (build-response text (or type MIME)))))
+      (build-response folder filename (or type MIME)))))
 
 (defn return-data
-  [id]
-   (let [data (get-from-db id)]
+  [folder filename]
+   (let [data (get-from-db folder filename)]
      (if-not (empty? data)
        (check-expired data)
        nil)))
@@ -166,7 +166,7 @@
 (defroutes app-routes
   (GET "/" [] "Welcome to Muon, the private self-destructible file host.")
   ; TODO(morg) Remove the /resource/ path and only access $HOST/<folder>/<filename> 
-  (GET ["/resource/:id" :id #"[0-9]+"] [id] (return-data (Integer/parseInt id)))
+  (GET ["/resource/:folder/:filename"] [folder filename] (return-data folder filename))
   (mp/wrap-multipart-params
    (POST "/upload" {params :params}
          (cond
