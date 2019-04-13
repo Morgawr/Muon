@@ -1,4 +1,4 @@
-(defproject muon "0.1.1"
+(defproject muon "0.2.0-indev"
   :description "Muon - Build your own self-destructible file host."
   :url "https://github.com/Morgawr/Muon.git"
   :dependencies [[org.clojure/clojure "1.9.0"]

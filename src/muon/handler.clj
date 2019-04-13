@@ -10,11 +10,15 @@
             [clojure.java.jdbc :as db]))
 
 ; Modify this if you want to change the url returned by the
-; webserver
+; webserver.
 (def DOMAIN_ROOT "http://localhost:8080/")
 
 ; Change the password!!
 (def PASSWORD "password")
+
+; Change this if you want to use a different file to source
+; the randomized wordlists for your system.
+(def WORDSFILE "db/wordlist")
 
 ; Default Content-Type
 (def MIME "application/octet-stream")
@@ -23,7 +27,7 @@
 
 (defn build-url
   [& args]
-  (reduce str DOMAIN_ROOT args))
+  (reduce str DOMAIN_ROOT (interpose "/" args)))
 
 (defn pool
   [spec]
@@ -42,6 +46,11 @@
 (def pooled-db (delay (pool sqldb)))
 (defn db-connection [] @pooled-db)
 
+(defn get-words-file []
+  (clojure.string/split-lines (slurp WORDSFILE)))
+
+(def words-file (memoize get-words-file))
+
 (defn get-from-db
   [id]
   (first (db/query (db-connection) (hn/format (hn/build {:select :*
@@ -58,22 +67,40 @@
    :headers {}
    :body "Internal server error, this should NOT happen."})
 
+(defn generate-random-folder []
+  (let [words (words-file)]
+    (str (rand-nth words) (rand-nth words) (rand-nth words))))
+
+(def base-file-data {:folder ""
+                     :filename ""
+                     :type ""
+                     :visits 0
+                     :expires_at 0
+                     :max_visits 0
+                     :policy ""})
+
 (defn save-to-db
-  [text type opts]
+  [folder filename type opts]
   (let [duration (try (Integer/parseInt (:duration opts)) (catch Exception e nil))
-        clicks (try (Integer/parseInt (:clicks opts)) (catch Exception e nil))]
+        clicks (try (Integer/parseInt (:clicks opts)) (catch Exception e nil))
+        data (merge base-file-data {:folder folder :filename filename :type type})
+        get-id #(last (ffirst %))
+        save-fn (fn [query expires?] 
+                  (let [res (db/insert! (db-connection) :data query)]
+                    (when expires?
+                      ; Set up auto-expire entry in the table
+                      (db/insert! (db-connection) :autoexpire {:data_id (get-id res) 
+                                                               :expires_at (:expires_at query)}))
+                    res))
+        get-url #(build-url "resource" folder filename)]
     (cond
      (and (nil? duration) (nil? clicks)) wrong-options
      (not (nil? clicks))
-       (let [res (db/insert! (db-connection) :data {:text text :type type :policy "clicks" :expires_at 0 :max_visits clicks :visits 0})]
-         (build-url
-          "resource/"
-          (str (last (ffirst res)) "\n")))
+       (let [res (save-fn (merge data {:policy "clicks" :max_visits clicks}) false)]
+         (str (get-url) "\n"))
      (not (nil? duration))
-       (let [res (db/insert! (db-connection) :data {:text text :type type :policy "timed" :expires_at (+ (System/currentTimeMillis) (* duration 1000)) :max_visits 0 :visits 0})]
-         (build-url
-          "resource/"
-          (str (last (ffirst res)) "\n")))
+       (let [res (save-fn (merge data {:policy "timed" :expires_at (+ (System/currentTimeMillis) (* duration 1000))}) true)]
+         (str (get-url) "\n"))
      :else internal-error)))
 
 (defn get-mime [filename]
@@ -82,11 +109,23 @@
         mime (or (get mimetypes ext) MIME)]
     mime))
 
+; TODO(morg): Make exit condition with exception if we recur too many times.
+(defn randomize-file-location [filename]
+  (loop []
+    (let [folder (generate-random-folder)
+          full-name (reduce str (interpose "/" ["resources" folder filename]))
+          new-file (io/as-file full-name)]
+      (do
+        (io/make-parents full-name)
+        (if (not (.exists new-file))
+          [folder new-file]
+          (recur))))))
+
 (defn handle-file-upload
   [data]
-  (let [filename (str "resources/" (System/currentTimeMillis))]
-    (io/copy (:tempfile (:file data)) (io/as-file filename))
-    (save-to-db filename (get-mime (:filename (:file data))) data)))
+  (let [[folder file] (randomize-file-location (:filename (:file data)))]
+    (io/copy (:tempfile (:file data)) file)
+    (save-to-db folder (:filename (:file data)) (get-mime (:filename (:file data))) data)))
 
 (defn build-response
   [text type]
@@ -120,13 +159,18 @@
                    (zipmap (rest line) (repeat (first line))))
                 (clojure.string/split (slurp file) #"\n"))))
 
+
+(defn check-password [password]
+  (not= password PASSWORD))
+
 (defroutes app-routes
   (GET "/" [] "Welcome to Muon, the private self-destructible file host.")
+  ; TODO(morg) Remove the /resource/ path and only access $HOST/<folder>/<filename> 
   (GET ["/resource/:id" :id #"[0-9]+"] [id] (return-data (Integer/parseInt id)))
   (mp/wrap-multipart-params
    (POST "/upload" {params :params}
          (cond
-           (not= (:password params) PASSWORD)
+           (check-password (:password params))
              {:status 401
               :header {}
               :body "Unauthorized access. This incident will be reported to your parents.\n"}
