@@ -6,7 +6,8 @@
                  [org.xerial/sqlite-jdbc "3.7.2"]
                  [org.clojure/java.jdbc "0.3.3"]
                  [com.mchange/c3p0 "0.9.2.1"]
-                 [honeysql "0.9.4"]]
+                 [honeysql "0.9.4"]
+                 [secure-rand "0.1"]]
   :plugins [[lein-ring "0.12.5"]]
   :ring {:handler muon.handler/app}
   :profiles

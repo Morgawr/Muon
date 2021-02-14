@@ -1,5 +1,7 @@
 (ns muon.handler
+  (:refer-clojure :exclude [rand rand-int rand-nth])
   (:use compojure.core)
+  (:use [secure-rand.core :only [rand rand-int rand-nth]])
   (:import com.mchange.v2.c3p0.ComboPooledDataSource)
   (:require [compojure.handler :as handler]
             [compojure.route :as route]
@@ -86,11 +88,11 @@
         clicks (try (Integer/parseInt (:clicks opts)) (catch Exception e nil))
         data (merge base-file-data {:folder folder :filename filename :type type})
         get-id #(last (ffirst %))
-        save-fn (fn [query expires?] 
+        save-fn (fn [query expires?]
                   (let [res (db/insert! (db-connection) :data query)]
                     (when expires?
                       ; Set up auto-expire entry in the table
-                      (db/insert! (db-connection) :autoexpire {:data_id (get-id res) 
+                      (db/insert! (db-connection) :autoexpire {:data_id (get-id res)
                                                                :expires_at (:expires_at query)}))
                     res))
         get-url #(build-url folder filename)]
@@ -161,7 +163,7 @@
        (check-expired data)
        nil)))
 
-(defn load-mime 
+(defn load-mime
   [file]
   (into {} (map #(let [line (.split % "\\s+")]
                    (zipmap (rest line) (repeat (first line))))
@@ -204,7 +206,7 @@
         result (first (db/query (db-connection) (hn/format db-query)))
         full-name (io/as-file (build-local-file-path (:folder result) (:filename result)))
         dir-name (io/as-file (build-local-dir-path (:folder result)))]
-      (do 
+      (do
         (when (.exists full-name)
           (io/delete-file full-name))
         (when (and (.isDirectory dir-name) (-> dir-name .list empty?))
