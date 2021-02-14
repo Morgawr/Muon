@@ -48,11 +48,14 @@ Take a look at muon-up, the primitive example client written in bash, to get a f
 
 https://github.com/Morgawr/muon-up
 
+Or you can just use the normal [Muon frontend](https://github.com/Morgawr/Muon-fe)
+that comes packaged with the server.
+
 ## License
 
 The MIT License (MIT)
 
-Copyright (c) 2014 Federico "Morg" Pareschi
+Copyright (c) 2021 Federico "Morg" Pareschi
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
