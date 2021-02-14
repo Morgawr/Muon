@@ -95,7 +95,7 @@
                       (db/insert! (db-connection) :autoexpire {:data_id (get-id res)
                                                                :expires_at (:expires_at query)}))
                     res))
-        get-url #(build-url folder filename)]
+        get-url #(build-url "file" folder filename)]
     (cond
      (and (nil? duration) (nil? clicks)) wrong-options
      (not (nil? clicks))
@@ -174,8 +174,10 @@
   (not= password PASSWORD))
 
 (defroutes app-routes
-  (GET "/" [] "Welcome to Muon, the private self-destructible file host.")
-  (GET ["/:folder/:filename"] [folder filename] (return-data folder filename))
+  (GET "/" [] (res/file-response "/" {:root "static"}))
+  (GET ["/file/:folder/:filename"] [folder filename] (return-data folder filename))
+  (GET ["/:dir/:file"] [dir file] (res/file-response
+                                    (str dir "/" file) {:root "static"}))
   (mp/wrap-multipart-params
    (POST "/upload" {params :params}
          (cond
